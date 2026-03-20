@@ -1,0 +1,103 @@
+name: Investment OS — SNS 자동 발행
+
+on:
+  schedule:
+    # Postmarket: KST 06:30 = UTC 21:30 (전날)
+    - cron: "30 21 * * 1-5"   # 월~금 UTC 21:30 (KST 06:30+1)
+    # Premarket: KST 17:30 = UTC 08:30
+    - cron: "30 8 * * 1-5"    # 월~금 UTC 08:30 (KST 17:30)
+
+  # 수동 실행 버튼 (GitHub Actions 페이지에서 직접 실행 가능)
+  workflow_dispatch:
+    inputs:
+      session:
+        description: "세션 타입"
+        required: true
+        default: "postmarket"
+        type: choice
+        options:
+          - premarket
+          - postmarket
+          - crisis
+      dry_run:
+        description: "DRY RUN (X 포스팅 없이 테스트)"
+        type: boolean
+        default: false
+      geopolitical_override:
+        description: "지정학 Signal 수동값 (기본 50)"
+        required: false
+        default: "50"
+
+jobs:
+  run-investment-os:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # 15분 이상 걸리면 강제 종료
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 세션 타입 자동 감지 (스케줄 실행 시)
+        id: detect_session
+        run: |
+          HOUR=$(date -u +%H)
+          MIN=$(date -u +%M)
+          # UTC 21:30 = Postmarket / UTC 08:30 = Premarket
+          if [ "$HOUR" = "21" ]; then
+            echo "session=postmarket" >> $GITHUB_OUTPUT
+          else
+            echo "session=premarket" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Investment OS 실행
+        env:
+          ANTHROPIC_API_KEY:       ${{ secrets.ANTHROPIC_API_KEY }}
+          X_API_KEY:               ${{ secrets.X_API_KEY }}
+          X_API_SECRET:            ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET:   ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          FRED_API_KEY:            ${{ secrets.FRED_API_KEY }}
+        run: |
+          # 수동 실행 시 입력값 우선, 스케줄 실행 시 자동 감지값 사용
+          SESSION="${{ github.event.inputs.session || steps.detect_session.outputs.session }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          GEO_OVERRIDE="${{ github.event.inputs.geopolitical_override || '50' }}"
+
+          ARGS="--session $SESSION"
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          ARGS="$ARGS --override geopolitical_shock_signal=$GEO_OVERRIDE"
+
+          cd src
+          python main.py $ARGS
+
+      - name: 로그 아티팩트 저장 (7일)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: investment-os-logs-${{ github.run_id }}
+          path: src/logs/
+          retention-days: 7
+
+      - name: 발행 이력 저장 (30일)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-history-${{ github.run_id }}
+          path: src/data/post_history/
+          retention-days: 30
+
+      # 실패 시 GitHub 알림 (기본 제공)
+      - name: 실패 알림 출력
+        if: failure()
+        run: echo "❌ Investment OS 실행 실패. Actions 로그 확인 필요."
