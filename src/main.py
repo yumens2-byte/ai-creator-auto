@@ -16,6 +16,7 @@ from pathlib import Path
 from data_fetcher import build_raw_signals
 from claude_caller import call_claude
 from x_publisher import post_to_x
+from ops_enhancer import run_quality_checks, export_operator_bundle
 
 # ──────────────────────────────────────────
 # 로그 설정
@@ -110,11 +111,33 @@ def run(session: str = "postmarket", dry_run: bool = False,
         logger.error(f"Claude API 실패: {e}")
         sys.exit(1)
 
-    # Step 3: X 포스팅 (dry_run 아닌 경우)
+    # Step 3: 품질 점검 + 운영자 번들 저장
+    qa = run_quality_checks(core_data)
+    if qa["is_passed"]:
+        logger.info("Core Data 품질 점검 통과")
+    else:
+        logger.error(f"Core Data 품질 점검 실패: {qa['critical_failures']}")
+    if qa["warnings"]:
+        logger.warning(f"Core Data 경고: {qa['warnings']}")
+
+    export_paths = export_operator_bundle(session=session, core_data=core_data, qa=qa)
+    logger.info(
+        f"운영자 번들 저장: json={export_paths['json_path']}, md={export_paths['md_path']}"
+    )
+
+    # Step 4: X 포스팅 (dry_run 아닌 경우)
     if dry_run:
         x_post = core_data.get("data", {}).get("sns", {}).get("x_post", "")
         logger.info(f"[DRY RUN] X 포스팅 미실행. 내용 미리보기:\n{x_post}")
         post_result = {"success": True, "dry_run": True, "text": x_post}
+    elif not qa["is_passed"]:
+        post_result = {
+            "success": False,
+            "dry_run": True,
+            "text": "",
+            "error": f"QA critical failure: {qa['critical_failures']}",
+        }
+        logger.error("품질 점검 Critical 실패로 X 포스팅 차단")
     else:
         post_result = post_to_x(
             api_key=x_key,
@@ -133,7 +156,7 @@ def run(session: str = "postmarket", dry_run: bool = False,
         else:
             logger.info(f"X 포스팅 성공: {post_result.get('tweet_id')}")
 
-    # Step 4: 이력 저장
+    # Step 5: 이력 저장
     save_history(session, core_data, post_result)
     logger.info("=== 실행 완료 ===")
     return core_data
