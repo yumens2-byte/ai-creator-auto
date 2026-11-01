@@ -1,0 +1,14 @@
+# 운영 대시보드(ops_dashboard) 전용 lint·테스트 설정 (DN2026_0087). 기존 src/ 는 게이트 밖.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+include = ["ops_dashboard/**/*.py", "tests/ops_dashboard/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ops_dashboard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/ops_dashboard"]
