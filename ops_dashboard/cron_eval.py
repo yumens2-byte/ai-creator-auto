@@ -85,6 +85,20 @@ def min_interval_minutes(crons: list[str], around: datetime, samples: int = 50) 
     return min(gaps) if gaps else 7 * 24 * 60.0
 
 
+def fires_between(crons: list[str], start: datetime, end: datetime,
+                  limit: int = 5000) -> list[datetime]:
+    """start 초과 end 이하 발화 시각(합집합, 정렬). limit 은 줄당 상한."""
+    fires: set[datetime] = set()
+    for expr in crons:
+        it = croniter(expr, start)
+        for _ in range(limit):
+            nxt = it.get_next(datetime)
+            if nxt > end:
+                break
+            fires.add(nxt)
+    return sorted(fires)
+
+
 def has_fire_between(crons: list[str], start: datetime, end: datetime) -> bool:
     nxt = next_fire_after(crons, start)
     return nxt is not None and nxt <= end

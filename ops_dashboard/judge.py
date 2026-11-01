@@ -15,7 +15,9 @@ LEVEL_ICON = {RED: "🔴", YELLOW: "🟡", GREEN: "🟢", GRAY: "⚪"}
 FAILED = ("failure", "timed_out", "startup_failure")
 CANCELLED = ("cancelled", "action_required")
 STUCK_AFTER = timedelta(hours=6)
-HIGH_FREQ_WINDOW = timedelta(hours=6)
+HIGH_FREQ_SPAN = timedelta(hours=6)   # 고빈도: 연속 누락이 이 시간 이상 이어져야 🔴
+HIGH_FREQ_MIN_MISSES = 3
+LOOKBACK = timedelta(days=8)
 HIGH_FREQ_MIN = 60
 MANUAL_WINDOW = timedelta(days=7)
 
@@ -165,11 +167,13 @@ def judge_workflow(
                     and not any(c >= ref2 for c in created_list)
                 )
             else:
-                window_start = now - HIGH_FREQ_WINDOW
-                repeat = (
-                    not any(c >= window_start for c in created_list)
-                    and cron_eval.has_fire_between(crons, window_start, now - grace)
-                )
+                # 마지막 실행 이후 (now − 유예)까지 놓친 슬롯이 3개 이상이고, 첫 누락~마지막 누락이
+                # 6시간 이상일 때만 🔴. 수 시간 지연·창 끝 누락은 🟡(11-01 shadow 실측)
+                floor = max(c for c in created_list) if created_list else (
+                    max(wf_created, now - LOOKBACK) if wf_created else now - LOOKBACK)
+                missed = cron_eval.fires_between(crons, floor, now - grace)
+                repeat = (len(missed) >= HIGH_FREQ_MIN_MISSES
+                          and missed[-1] - missed[0] >= HIGH_FREQ_SPAN)
             codes.append("MISSED_REPEAT" if repeat else "MISSED")
 
     # 2) 최근 실행 결과
