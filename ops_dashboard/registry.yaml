@@ -1,0 +1,20 @@
+# 운영 대시보드 감시 대상 (DN2026_0087)
+# - repos: 감시 레포. 워크플로 목록은 매 실행 GitHub API에서 자동 발견한다(수동 목록 없음).
+# - overrides: 키 = "<owner>/<repo>/<워크플로 경로>". 사실 근거가 있는 항목만 등록한다.
+#     count_events: 예약 실행으로 셀 event (기본 [schedule])
+#     grace_minutes: 유예시간(분), 기본은 OPS_DEFAULT_GRACE_MIN
+#     ignore: true 이면 판정 제외(⚪ IGNORED)
+#     known_issue: 레포 카드 Known Issue ID — 실패를 🟡 KNOWN_ISSUE 로 낮춤
+repos:
+  - yumens2-byte/investment-os
+  - yumens2-byte/investment-alert
+  - yumens2-byte/investment-os-kr
+  - yumens2-byte/investment-comic-gemini
+  - yumens2-byte/investment_comic_tube
+  - yumens2-byte/fb-page-publisher
+  - ryuryan091-spec/threads-promo
+
+overrides:
+  # pg_cron ia_alert_dispatch 가 workflow_dispatch 로 호출(레포 카드, alert.yml:12·60·70 — 2026-11-01 확인)
+  yumens2-byte/investment-alert/.github/workflows/alert.yml:
+    count_events: [schedule, workflow_dispatch]

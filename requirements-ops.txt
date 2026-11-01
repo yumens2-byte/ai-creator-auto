@@ -1,0 +1,4 @@
+# 운영 대시보드(ops_dashboard) 실행 의존성 — 기존 src/ 용 requirements.txt 와 분리
+requests>=2.31,<3
+PyYAML>=6.0,<7
+croniter>=6.0,<7

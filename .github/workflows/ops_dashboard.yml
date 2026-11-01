@@ -1,0 +1,90 @@
+# 운영 대시보드 수집기 (DN2026_0087)
+# cron ↔ if 매핑(STD-SCHED-01): "7,37 * * * *"(30분, 정각·반각 회피) → collect job 무조건 실행. job if 없음.
+# 모드(STD-MODE-02): 수동 = inputs.mode, 예약 = vars.OPS_DASHBOARD_MODE, 둘 다 없으면 dry_run.
+#   dry_run: 수집·판정·artifact만 / shadow: + Notion 갱신·상태 저장 / live: + 운영자 방 텔레그램
+name: Ops Dashboard
+
+"on":
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "실행 모드"
+        required: true
+        default: dry_run
+        type: choice
+        options:
+          - dry_run
+          - shadow
+          - live
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ops-dashboard
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || vars.OPS_DASHBOARD_MODE || 'dry_run' }}
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ops.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements-ops.txt
+
+      - name: 이전 상태 복원
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: ops-dashboard-state-${{ github.run_id }}
+          restore-keys: |
+            ops-dashboard-state-
+
+      - name: 수집·판정·게시
+        env:
+          OPS_GH_TOKEN: ${{ secrets.OPS_GH_TOKEN }}
+          GITHUB_TOKEN_FALLBACK: ${{ github.token }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          OPS_DASHBOARD_PAGE_ID: ${{ vars.OPS_DASHBOARD_PAGE_ID }}
+          OPS_DEFAULT_GRACE_MIN: ${{ vars.OPS_DEFAULT_GRACE_MIN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_PAID_CHANNEL_ID: ${{ secrets.TELEGRAM_PAID_CHANNEL_ID }}
+        run: python -m ops_dashboard.main
+
+      - name: 상태 저장
+        if: always() && env.RUN_MODE != 'dry_run' && hashFiles('state/ops_state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: state
+          key: ops-dashboard-state-${{ github.run_id }}
+
+      - name: 결과 업로드(7일)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-dashboard-${{ github.run_id }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: 수집기 치명 실패 알림
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_PAID_CHANNEL_ID: ${{ secrets.TELEGRAM_PAID_CHANNEL_ID }}
+        run: python -m ops_dashboard.notify_failure

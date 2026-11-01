@@ -2,6 +2,24 @@
 
 Investment OS 기반 자동화 크리에이터 운영 레포입니다.
 
+## 운영 대시보드 (`ops_dashboard/`, DN2026_0087)
+
+부캐 시스템 7개 레포의 GitHub Actions 워크플로를 30분마다 판정해 Notion 대시보드 페이지를 갱신하고,
+🔴 진입·해소와 일일 요약을 운영자 방 텔레그램으로 보냅니다. 대상 레포는 읽기 전용으로만 조회합니다.
+
+- 워크플로: `.github/workflows/ops_dashboard.yml`(cron `7,37 * * * *`), CI `ops_ci.yml`
+- 모드: `dry_run`(수집·판정·artifact) → `shadow`(+Notion·상태 저장) → `live`(+텔레그램)
+  - 수동 실행은 입력 `mode`, 예약 실행은 Variable `OPS_DASHBOARD_MODE`(미등록 시 dry_run)
+- 감시 대상·예외: `ops_dashboard/registry.yaml`
+- 설정 이름(값은 Secrets/Variables에만): Variable `OPS_DASHBOARD_MODE`·`OPS_DASHBOARD_PAGE_ID`·
+  `OPS_DEFAULT_GRACE_MIN`(선택), Secret `NOTION_TOKEN`·`TELEGRAM_BOT_TOKEN`·`TELEGRAM_PAID_CHANNEL_ID`·
+  `OPS_GH_TOKEN`(선택, 미설정 시 워크플로 기본 토큰)
+- 로컬 검증: `pip install -r requirements-ops-dev.txt && ruff check . && pytest -q`
+- 판정 기준·사유코드: Notion 「상세설계 — 운영 대시보드 1차」 §4
+- 대시보드 페이지 본문(문단·제목·표·콜아웃)은 매 실행 교체되므로 수동 편집하지 않습니다(하위 페이지·DB는 보존).
+
+아래는 기존 `src/` 파이프라인 설명입니다(워크플로 `investment_os.yml`은 비활성 상태).
+
 ## 현재 구조
 
 - `src/data_fetcher.py`

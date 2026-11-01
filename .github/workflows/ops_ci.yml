@@ -1,0 +1,41 @@
+# 운영 대시보드 CI 게이트 (DN2026_0087): ruff + pytest, Python 3.11. 기존 src/ 는 대상 아님.
+# 예약 실행 없음(cron 미사용).
+name: Ops Dashboard CI
+
+"on":
+  push:
+    paths:
+      - "ops_dashboard/**"
+      - "tests/ops_dashboard/**"
+      - "requirements-ops*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/ops_*.yml"
+  pull_request:
+    paths:
+      - "ops_dashboard/**"
+      - "tests/ops_dashboard/**"
+      - "requirements-ops*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/ops_*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ops-dev.txt
+      - name: 의존성 설치
+        run: pip install -r requirements-ops-dev.txt
+      - name: ruff
+        run: ruff check .
+      - name: pytest
+        run: pytest -q
