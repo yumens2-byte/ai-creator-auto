@@ -36,19 +36,33 @@ def test_missed_repeat(now):  # TS-OPS-06
     assert (row.level, row.codes) == (RED, ["MISSED_REPEAT"])
 
 
-def test_high_freq(now):  # TS-OPS-07 — 매 10분
+def test_high_freq(now):  # TS-OPS-07 — 매 10분, 유예 120분
     crons = ["*/10 * * * *"]
     two_h = judge(now, [run(now - timedelta(hours=2, minutes=30))], crons=crons)
-    assert (two_h.level, two_h.codes) == (YELLOW, ["MISSED"])
+    assert (two_h.level, two_h.codes) == (YELLOW, ["MISSED"])  # 누락 구간 30분
     seven_h = judge(now, [run(now - timedelta(hours=7))], crons=crons)
-    assert (seven_h.level, seven_h.codes) == (RED, ["MISSED_REPEAT"])
+    assert (seven_h.level, seven_h.codes) == (YELLOW, ["MISSED"])  # 누락 구간 4시간 50분
+    nine_h = judge(now, [run(now - timedelta(hours=9))], crons=crons)
+    assert (nine_h.level, nine_h.codes) == (RED, ["MISSED_REPEAT"])  # 누락 구간 6시간 50분
 
 
-def test_high_freq_no_slot_in_window_is_not_red():
-    crons = ["*/10 15-21 * * 0-4"]  # KST 00~06시대만
-    now = ts("2026-11-03T08:00:00")  # 화 08:00 UTC: 직전 6시간(02~06시) 안 슬롯 없음
+def test_high_freq_window_tail_miss_is_not_red():
+    crons = ["*/10 15-21 * * 0-4"]  # 창 끝(21:10~21:50) 누락 뒤 다음 창까지 공백
+    now = ts("2026-11-03T08:00:00")
     row = judge(now, [run(ts("2026-11-02T21:00:00"))], crons=crons)
     assert (row.level, row.codes) == (YELLOW, ["MISSED"])
+
+
+def test_high_freq_irregular_delay_is_yellow_and_full_day_stop_is_red():
+    # threads-promo chat.yml 실측 일정(2026-11-01 shadow): 마지막 실행 10-31 17:57 UTC
+    crons = ["4 0 * * *", "26 0 * * *", "47 0 * * *", "11 1 * * *", "33 1 * * *",
+             "56 1 * * *", "18 2 * * *", "39 2 * * *", "57 2 * * *", "58 6 * * *",
+             "17 10 * * *", "44 11 * * *", "19 12 * * *", "36 13 * * *", "54 13 * * *"]
+    last = [run(ts("2026-10-31T17:57:00"))]
+    delayed = judge(ts("2026-11-01T02:57:00"), last, crons=crons)
+    assert (delayed.level, delayed.codes) == (YELLOW, ["MISSED"])
+    stopped = judge(ts("2026-11-01T16:00:00"), last, crons=crons)
+    assert (stopped.level, stopped.codes) == (RED, ["MISSED_REPEAT"])
 
 
 def test_failed_and_cancelled(now):  # TS-OPS-08
