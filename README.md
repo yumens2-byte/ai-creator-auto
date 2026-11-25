@@ -18,6 +18,20 @@ Investment OS 기반 자동화 크리에이터 운영 레포입니다.
 - 판정 기준·사유코드: Notion 「상세설계 — 운영 대시보드 1차」 §4
 - 대시보드 페이지 본문(문단·제목·표·콜아웃)은 매 실행 교체되므로 수동 편집하지 않습니다(하위 페이지·DB는 보존).
 
+## 예약 지연 감지 (`ops_dashboard/delay/`, DN2026_0128)
+
+운영 레포의 예약(schedule) 실행이 예정 시각보다 얼마나 늦게 만들어지는지, 얼마나 빠지는지를 1시간마다
+집계해 Notion 「⏱️ EDT 예약 지연 감지(자동 갱신)」 페이지를 갱신합니다. 계정 레벨(🟢🟡🔴)이 바뀔 때만
+운영자 방 텔레그램으로 1건 보냅니다. 기존 대시보드 모듈은 재사용만 하고 수정하지 않습니다.
+
+- 워크플로: `.github/workflows/ops_delay.yml`(cron `23 * * * *`), CI는 기존 `ops_ci.yml`
+- 진입점: `python -m ops_dashboard.delay.main` / 대상 레포: `ops_dashboard/delay/targets.yaml`
+- 모드: Variable `OPS_DELAY_MODE`(미등록 시 dry_run), 수동 실행은 입력 `mode`
+- 설정 이름: Variable `OPS_DELAY_PAGE_ID`, 선택 `OPS_DELAY_WARN_MIN`(60)·`OPS_DELAY_CRIT_MIN`(240)·
+  `OPS_DELAY_DROP_WARN_PCT`(5)·`OPS_DELAY_DROP_CRIT_PCT`(15)·`OPS_DELAY_PENDING_H`(24),
+  Secret은 대시보드와 같은 값 재사용
+- 계산 기준: Notion 「상세설계 — 예약 지연 감지 (운영 대시보드 확장)」 §4
+
 아래는 기존 `src/` 파이프라인 설명입니다(워크플로 `investment_os.yml`은 비활성 상태).
 
 ## 현재 구조
