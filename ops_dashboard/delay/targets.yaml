@@ -1,0 +1,13 @@
+# 예약 지연 감지 대상 (DN2026_0128)
+# - 운영 대시보드 registry.yaml 의 7개 레포 + 수집기 자신(ai-creator-auto).
+# - page76-ops 는 Private 이라 기본 GITHUB_TOKEN 으로 조회 불가, 포함 여부 회장 확인 대기(설계 Q-6).
+# - 워크플로 목록은 매 실행 GitHub API 에서 자동 발견한다(수동 목록 없음).
+repos:
+  - yumens2-byte/investment-os
+  - yumens2-byte/investment-alert
+  - yumens2-byte/investment-os-kr
+  - yumens2-byte/investment-comic-gemini
+  - yumens2-byte/investment_comic_tube
+  - yumens2-byte/fb-page-publisher
+  - ryuryan091-spec/threads-promo
+  - yumens2-byte/ai-creator-auto
